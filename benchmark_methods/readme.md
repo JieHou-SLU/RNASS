@@ -1,0 +1,1 @@
+The folder contains the jupyter notebooks for running several energy-based rna secondary structure prediction algorithms. The notebook is set to run on Google Colab (https://colab.research.google.com/). 
