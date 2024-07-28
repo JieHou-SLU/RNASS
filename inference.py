@@ -8,11 +8,11 @@ import operator
 import itertools
 import operator
 import pandas as pd
-import re
 
-from libs.utils import ReshapeConv_to_LSTM
-from libs.model import rna_pair_prediction_bin_spektral, train_graph_batched
+from libs.utils import *
 from libs.model import * 
+from libs.evaluation import *
+from libs.dataset import * 
 
 flag_plots = False
 
@@ -34,7 +34,6 @@ os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
 from tqdm import tqdm
 from spektral.data.loaders import BatchLoader
-
 from spektral.data import Dataset, Graph
 import numpy as np
 import scipy.sparse as sp
@@ -45,8 +44,8 @@ import glob
 def get_args():
     parser = argparse.ArgumentParser(
             formatter_class=argparse.RawTextHelpFormatter,
-            epilog='EXAMPLE:\npython3 /faculty/jhou4/Projects/RNA_folding/train_network_Nov28_SingleTrain.py  -b 5 -r 0-50 -n -1 -c 64 -e 10 -d 4 -f 8 -p /faculty/jhou4/Projects/RNA_folding/data/Own_data/Sharear -v 0 -o /faculty/jhou4/Projects/RNA_folding/train_results_20201128_len0_50_4')
-    #parser.add_argument('-w', type=str, required = True, dest = 'file_weights', help="hdf5 weights file")
+            epilog='EXAMPLE:\npython3 inference.py -m models/LinearPartition_use/ARMAConv/rna_best_val.hdf5 -p data/Refined_dataset.h5 -o results/test_ARMA -w ARMAConv -a LinearPartition')
+    parser.add_argument('-m', type=str, required = True, dest = 'file_weights', help="hdf5 weights file")
     parser.add_argument('-b', type=int, required = True, dest = 'batch_size', help="number of pdbs to use for each batch")
     parser.add_argument('-r', type=str, required = True, dest = 'len_range', help="lengths of pdbs to use for each batch")
     parser.add_argument('-e', type=int, required = True, dest = 'training_epochs', help="# of epochs")
@@ -57,7 +56,7 @@ def get_args():
     parser.add_argument('-k', type=int, required = True, dest = 'filter_size_2d', help="filter_size_2d")
     parser.add_argument('-l', type=float, required = True, dest = 'loss_ratio', help="ratio in weighted loss")
     parser.add_argument('-t', type=float, required = True, dest = 'dropout_rate', help="ratio in dropout")
-    parser.add_argument('-m', type=int, required = True, dest = 'lstm_layers', help="number of lstm layers")
+    parser.add_argument('-z', type=int, required = True, dest = 'lstm_layers', help="number of lstm layers")
     parser.add_argument('-y', type=int, required = True, dest = 'fully_layers', help="number of fully connected layers")
     parser.add_argument('-g', type=float, required = True, dest = 'nt_reg_weight', help="weight for nt regularized term")
     parser.add_argument('-u', type=float, required = True, dest = 'pair_reg_weight', help="weight for pair_reg_weight  regularized term")
@@ -65,17 +64,17 @@ def get_args():
     parser.add_argument('-i', type=int, required = True, dest = 'include_pseudoknots', help="filter type")
     parser.add_argument('-q', type=int, required = True, dest = 'dilation_size', help="dilation")
     parser.add_argument('-w', type=str, required = True, dest = 'gcn_type', help="gcn_type")
+    parser.add_argument('-a', type=str, required = True, dest = 'edge_type', help="edge_type")
     
     args = parser.parse_args()
     return args
 
 
 import sys
-sys.argv = ['script_name.py',  '-b', '8', '-r', '0-500', '-e', '50', '-d', '10', '-f', '40', '-p', 
- 'data/Refined_dataset.h5', '-v', 
- '0', '-o','results/test_ARMA', 
- '-k', '7', '-l', '0.5', '-t', '0.3', '-m', '2', '-y', '0', '-g', '1', '-u', '1', 
-'-j', '8', '-q', '4', '-i', '1', '-w', 'ARMAConv']
+sys.argv = ['script_name.py',  '-b', '8', '-r', '0-500', '-e', '50', '-d', '10', '-f', '40',
+ '-k', '7', '-l', '0.5', '-t', '0.3', '-z', '2', '-y', '0', '-g', '1', '-u', '1', 
+'-j', '8', '-q', '4', '-i', '1'] + sys.argv[1:]
+
 
 #['GraphSage', 'DefaultGatedGCN', 'AGNNConv', 'APPNPConv', 'ARMAConv', 'EdgeConv', 'GATConv', 'GATConv4', 'GCNConv']
 
@@ -92,14 +91,13 @@ training_epochs           = args.training_epochs #50
 data_path               = args.data_path #'~/data/Own_data/Sharear' 
 dir_out                   = args.dir_out #' /train_results' 
 filter_size_2d            = args.filter_size_2d # 7
-
 length_start              = 0
 length_end                = 500
 if len(len_range.split('-')) == 2:
     length_start              = int(len_range.split('-')[0])
     length_end                = int(len_range.split('-')[1])
 
-file_weights              = dir_out+'/rna.hdf5' 
+file_weights              = args.file_weights # rna_best_val.hdf5'
 
 loss_ratio                = args.loss_ratio # 1
 
@@ -109,16 +107,23 @@ fully_layers              = args.fully_layers # 1
 nt_reg_weight               = args.nt_reg_weight # 1
 pair_reg_weight               = args.pair_reg_weight # 1
 lstm_filter     = args.lstm_filter # 1
-feature_type     = args.feature_type # 1
 dilation_size =  args.dilation_size # 1
-regularize            = False
+regularize            = True
 
+edge_type = args.edge_type 
+
+if edge_type not in ['LinearPartition', 'MXfold']:
+    edge_type =  'MXfold'
+
+'''
 if args.include_pseudoknots == 1:
     include_pseudoknots = True
     print("Including pseudoknots")
 else:
     include_pseudoknots = False
     print("Excluding pseudoknots")
+'''
+include_pseudoknots = True
 
 
 expected_n_channels       = 4
@@ -171,9 +176,8 @@ print('Compile model..')
 
 
 
-
 losses = {
-	"nt_out": weighted_binary_crossentropy_ntRegularized,
+    "nt_out": weighted_binary_crossentropy_ntRegularized,
   "pair_out2": weighted_binary_crossentropy_pairRegularized
 }
 
@@ -245,11 +249,11 @@ elif gcn_type == 'GCNConv':
 else:
     data_transform = [LayerPreprocess(GraphSageConv), AdjToSpTensor()]
 
-bpRNA_train_generator = RnaGenerator_gcn_sp(bpRNA_train_data, batch_size, expected_n_channels, transforms=data_transform)
-bpRNA_valid_generator = RnaGenerator_gcn_sp(bpRNA_valid_data, batch_size, expected_n_channels, transforms=data_transform)
+bpRNA_train_generator = RnaGenerator_gcn_sp(bpRNA_train_data, batch_size, expected_n_channels, edge_type = edge_type, transforms=data_transform)
+bpRNA_valid_generator = RnaGenerator_gcn_sp(bpRNA_valid_data, batch_size, expected_n_channels, edge_type = edge_type, transforms=data_transform)
 
-PDB_train_generator = RnaGenerator_gcn_sp(pdb_train_data, batch_size, expected_n_channels, transforms=data_transform)
-PDB_valid_generator = RnaGenerator_gcn_sp(pdb_valid_data, batch_size, expected_n_channels, transforms=data_transform)
+PDB_train_generator = RnaGenerator_gcn_sp(pdb_train_data, batch_size, expected_n_channels, edge_type = edge_type,transforms=data_transform)
+PDB_valid_generator = RnaGenerator_gcn_sp(pdb_valid_data, batch_size, expected_n_channels, edge_type = edge_type,transforms=data_transform)
 
 
 print('')
@@ -283,16 +287,15 @@ print('')
 #print('Channel summaries:')
 #summarize_channels(X[0, :, :], Y[0])
 
-if flag_eval_only == 0:
-    if os.path.exists(file_weights):
-        print('')
-        print('Loading existing weights..')
-        try:
-            model.load_weights(file_weights)
-        except:
-            print("Loading model error!")
+
+if os.path.exists(file_weights):
     print('')
-    print('Train..')
+    print('Loading existing weights..')
+    try:
+        model.load_weights(file_weights)
+    except:
+        print("Loading model error!")
+
 
 
 # Setup the ModelCheckpoint callback
@@ -320,99 +323,98 @@ pdb_acc_record_val=[]
 pdb_acc_record_test=[]        
 pdb_acc_record_test2=[]     
 pdb_acc_record_test3=[]      
-print("\n\nEvaluation on Epoch: " + str(int(epoch))+"\n")
 
 print("Evaluating on all data with ", len(eva_dataset), " rnas\n")
 
-model_pred = rna_pair_prediction_bin_spektral2(node_dim=expected_n_channels, gcn_type = gcn_type, num_gcn_layers = arch_depth, filter_size = filter_size_2d, num_lstm_layers = lstm_layers, hidden_dim = filters_per_layer, regularize=regularize, dropout_rate = dropout_rate, dilation_size=1)
+model_pred = rna_pair_prediction_bin_spektral(node_dim=expected_n_channels, gcn_type = gcn_type, num_gcn_layers = arch_depth, filter_size = filter_size_2d, num_lstm_layers = lstm_layers, hidden_dim = filters_per_layer, regularize=regularize, dropout_rate = dropout_rate, dilation_size=1)
 
-print("Loading model: ",dir_out+'/rna_best_val.hdf5')
-model_pred.load_weights(dir_out+'/rna_best_val.hdf5')  
+print("Loading model: ",file_weights)
+model_pred.load_weights(file_weights)  
 
 idx_num = 0
 results_summary = pd.DataFrame(columns = ['pdbid', 'source', 'f1-score'])
-with tqdm(total=len(eva_dataset), desc=f"Evaluation Dataset Epoch {epoch}") as pbar:
-	for rna_id in eva_dataset.index:
-		#print(str(rna_id)+",", end="", flush=True)
+with tqdm(total=len(eva_dataset), desc=f"Evaluation Dataset") as pbar:
+    for rna_id in eva_dataset.index:
+        #print(str(rna_id)+",", end="", flush=True)
 
-		rna = eva_dataset['RNA_ID'][rna_id]
-		rna_datasource = eva_dataset['DataSource'][rna_id]
-		rna_datatype = eva_dataset['DataType'][rna_id]
-		sequence = eva_dataset['Sequence'][rna_id]
-		if include_pseudoknots:
-			pairing_list = eva_dataset['BasePairs'][rna_id].split(',')
-		else:
-			pairing_list = eva_dataset['UnknottedPairs'][rna_id].split(',')
-		
-		one_hot_feat = one_hot(sequence)
-		label_mask = l_mask(one_hot_feat, len(sequence))
-		
-		batch_data = eva_dataset.iloc[rna_id: (rna_id + 1)] # select rows of dataframe
-		tmp_dataset = gcn_data_wrapper(name = 'tmp', dataset = batch_data, expected_n_channels = expected_n_channels, transforms=data_transform)
-		graph = tmp_dataset[0]
-		#x, a, y = graph.x, graph.a, graph.y     
-		X = tf.expand_dims(graph.x, axis=0) 
-		EE_val = tf.expand_dims(graph.e, axis=0) 
-		EE_adj = tf.expand_dims(graph.y[2], axis=0) 
-		EE_adj2 = graph.a
-		Y = tf.expand_dims(graph.y[0], axis=0) 
-		Y_nt = tf.expand_dims(graph.y[1], axis=0) 
+        rna = eva_dataset['RNA_ID'][rna_id]
+        rna_datasource = eva_dataset['DataSource'][rna_id]
+        rna_datatype = eva_dataset['DataType'][rna_id]
+        sequence = eva_dataset['Sequence'][rna_id]
+        if include_pseudoknots:
+            pairing_list = eva_dataset['BasePairs'][rna_id].split(',')
+        else:
+            pairing_list = eva_dataset['UnknottedPairs'][rna_id].split(',')
+        
+        one_hot_feat = one_hot(sequence)
+        label_mask = l_mask(one_hot_feat, len(sequence))
+        
+        batch_data = eva_dataset.iloc[rna_id: (rna_id + 1)] # select rows of dataframe
+        tmp_dataset = gcn_data_wrapper(name = 'tmp', dataset = batch_data, expected_n_channels = expected_n_channels, edge_type = edge_type, transforms=data_transform)
+        graph = tmp_dataset[0]
+        #x, a, y = graph.x, graph.a, graph.y     
+        X = tf.expand_dims(graph.x, axis=0) 
+        EE_val = tf.expand_dims(graph.e, axis=0) 
+        EE_adj = tf.expand_dims(graph.y[2], axis=0) 
+        EE_adj2 = graph.a
+        Y = tf.expand_dims(graph.y[0], axis=0) 
+        Y_nt = tf.expand_dims(graph.y[1], axis=0) 
 
-		# evaluate
+        # evaluate
 
-		output_prob, _ = model_pred([X,EE_val,EE_adj,EE_adj2], training=False)
-		output_prob = output_prob[0] # get first sample output
-		
-		idx_num += 1
-		output_class = output_prob > 0.5
-		seqLen = len(sequence)
-		true_contact = np.zeros((seqLen, seqLen))
-		for i in range(0,seqLen):
-			for j in range(0,seqLen):
-				xx = 0
-				if i == j:
-					xx = 0
-				if str(i+1)+"-"+str(j+1) in pairing_list or str(j+1)+"-"+str(i+1) in pairing_list:
-					xx = 1 
-				true_contact[i, j] = xx
-				true_contact[j, i] = xx
-	
-		true_contact[true_contact < 0] = 0 # transfer -1 to 0, shape = (L, L)
-		# i - j >= 2
-		true_contact = np.tril(true_contact, k=-2) + np.triu(true_contact, k=2) # remove the diagnol contact
-		true_contact = true_contact.astype(np.uint8)
+        output_prob, _ = model_pred([X,EE_val,EE_adj,EE_adj2], training=False)
+        output_prob = output_prob[0] # get first sample output
+        
+        idx_num += 1
+        output_class = output_prob > 0.5
+        seqLen = len(sequence)
+        true_contact = np.zeros((seqLen, seqLen))
+        for i in range(0,seqLen):
+            for j in range(0,seqLen):
+                xx = 0
+                if i == j:
+                    xx = 0
+                if str(i+1)+"-"+str(j+1) in pairing_list or str(j+1)+"-"+str(i+1) in pairing_list:
+                    xx = 1 
+                true_contact[i, j] = xx
+                true_contact[j, i] = xx
+    
+        true_contact[true_contact < 0] = 0 # transfer -1 to 0, shape = (L, L)
+        # i - j >= 2
+        true_contact = np.tril(true_contact, k=-2) + np.triu(true_contact, k=2) # remove the diagnol contact
+        true_contact = true_contact.astype(np.uint8)
 
-		acc = evaluate_predictions_single(true_contact, output_prob[:,:,0],sequence,label_mask)
-		
-		predicted_structure = get_ss_pairs_from_matrix(output_prob[:,:,0],sequence,label_mask, 0.5)
-		
-		#ct_out = dir_out + '/pred_ct_files/' + rna + '.ct'
-		#ct_file_output(predicted_structure,sequence,ct_out)
-		
-		new_rows = pd.DataFrame([
-				{'pdbid': rna, 'source': rna_datasource, 'f1-score': str(acc[4]), }
-			])
-		results_summary = pd.concat([results_summary, new_rows], ignore_index=True)
-		if rna_datasource == 'bpRNA' and rna_datatype == 'Validation':
-			  bpRNA_acc_record_val.append(acc) 
-		if rna_datasource == 'bpRNA' and rna_datatype == 'Test':
-			  bpRNA_acc_record_test.append(acc) 
-		if rna_datasource == 'PDB' and rna_datatype == 'Train':
-			  pdb_acc_record_train.append(acc) 
-		if rna_datasource == 'PDB' and rna_datatype == 'Validation':
-			  pdb_acc_record_val.append(acc) 
-		if rna_datasource == 'PDB' and rna_datatype == 'Test':
-			  pdb_acc_record_test.append(acc) 
-		if rna_datasource == 'PDB' and rna_datatype == 'Test2':
-			  pdb_acc_record_test2.append(acc) 
-		if rna_datasource == 'PDB' and rna_datatype == 'Test_hard':
-			  pdb_acc_record_test3.append(acc) 
+        acc = evaluate_predictions_single(true_contact, output_prob[:,:,0],sequence,label_mask)
+        
+        predicted_structure = get_ss_pairs_from_matrix(output_prob[:,:,0],sequence,label_mask, 0.5)
+        
+        #ct_out = dir_out + '/pred_ct_files/' + rna + '.ct'
+        #ct_file_output(predicted_structure,sequence,ct_out)
+        
+        new_rows = pd.DataFrame([
+                {'pdbid': rna, 'source': rna_datasource, 'f1-score': str(acc[4]), }
+            ])
+        results_summary = pd.concat([results_summary, new_rows], ignore_index=True)
+        if rna_datasource == 'bpRNA' and rna_datatype == 'Validation':
+              bpRNA_acc_record_val.append(acc) 
+        if rna_datasource == 'bpRNA' and rna_datatype == 'Test':
+              bpRNA_acc_record_test.append(acc) 
+        if rna_datasource == 'PDB' and rna_datatype == 'Train':
+              pdb_acc_record_train.append(acc) 
+        if rna_datasource == 'PDB' and rna_datatype == 'Validation':
+              pdb_acc_record_val.append(acc) 
+        if rna_datasource == 'PDB' and rna_datatype == 'Test':
+              pdb_acc_record_test.append(acc) 
+        if rna_datasource == 'PDB' and rna_datatype == 'Test2':
+              pdb_acc_record_test2.append(acc) 
+        if rna_datasource == 'PDB' and rna_datatype == 'Test_hard':
+              pdb_acc_record_test3.append(acc) 
 
-		# Update tqdm progress bar message
-		pred_f1 = acc[4]
-		pbar.set_postfix(rna_idx = rna_id, f1_score=pred_f1)
-		pbar.update(1)  # Manually increment the progress bar
-		
+        # Update tqdm progress bar message
+        pred_f1 = acc[4]
+        pbar.set_postfix(rna_idx = rna_id, f1_score=pred_f1)
+        pbar.update(1)  # Manually increment the progress bar
+        
 results_summary.to_csv(dir_out+'/data_evaluation_summary.txt', index=False)
 
 print("\n\n########################### bpRNA validation evaluation (total ",len(bpRNA_valid_data)," rnas): ###################################\n\n")
@@ -448,7 +450,7 @@ output_result_simple(avg_acc)
 print("\n\n########################### PDB test_hard evaluation (total ",len(pdb_test3_data)," rnas): ###################################\n\n")
 avg_acc = np.mean(np.array(pdb_acc_record_test3), axis=0).round(decimals=5)
 output_result_simple(avg_acc)
-	
+    
 print("\n\n#######################################################################\n\n")
 
 

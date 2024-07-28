@@ -1,5 +1,7 @@
 from tensorflow.keras.utils import *
 import tensorflow as tf
+
+from tensorflow.keras import backend as K
 epsilon = tf.keras.backend.epsilon()
 import matplotlib
 import matplotlib.pyplot as plt
@@ -17,7 +19,19 @@ from spektral.layers import GraphSageConv, AGNNConv, APPNPConv, ARMAConv,EdgeCon
 from tensorflow.keras.models import Model
 from tensorflow.keras.regularizers import l2
 
-def rna_pair_prediction_bin_spektral(gcn_type = 'GraphSage', node_num = None, node_dim=4, hidden_dim=100, voc_edges_in = 2, voc_edges_out = 1, voc_nodes_out = 2, num_gcn_layers = 10, num_lstm_layers = 2, lstm_filter = 8, aggregation = "mean", regularize=False, dropout_rate = 0.25, dilation_size = 1, filter_size=3):
+
+
+def ReshapeConv_to_LSTM(x):
+    reshape=K.expand_dims(x,0)
+    return reshape
+
+def ReshapeLSTM_to_Conv(x):
+    reshape=K.squeeze(x,0)
+    return reshape
+
+
+
+def rna_pair_prediction_bin_spektral(gcn_type = 'ARMAConv', node_num = None, node_dim=4, hidden_dim=100, voc_edges_in = 2, voc_edges_out = 1, voc_nodes_out = 2, num_gcn_layers = 10, num_lstm_layers = 2, lstm_filter = 8, aggregation = "mean", regularize=False, dropout_rate = 0.25, dilation_size = 1, filter_size=3):
     if  gcn_type not in ['DefaultGatedGCN', 'APPNPConv', 'ARMAConv',  'EdgeConv', 'GATConv', 'GatedGraphConv', 'GCNConv']:
         print("Wrong gcn_type")
         raise
@@ -95,7 +109,7 @@ def rna_pair_prediction_bin_spektral(gcn_type = 'GraphSage', node_num = None, no
         node_combine = []
         #for gcn_type in ['GraphSage','APPNPConv', 'ARMAConv', 'EdgeConv',  'GATConv4',  'GatedGraphConv', 'GCNConv']:
         #for gcn_type in ['APPNPConv', 'ARMAConv', 'GCNConv', 'EdgeConv', 'GATConv4']:
-        for gcn_type in []:
+        for gcn_type in [gcn_type]:
             if gcn_type == 'APPNPConv':
                 node_in = tf.squeeze(x_in, axis=0) 
                 #adj_in = tf.squeeze(a_in, axis=0) 
@@ -252,8 +266,9 @@ def rna_pair_prediction_bin_spektral(gcn_type = 'GraphSage', node_num = None, no
     
     nt_tower = Activation('sigmoid', name = "nt_out")(edge_merge_embedding)
     pair_tower2 = Activation('sigmoid', name = "pair_out2")(edge_merge_embedding) # subregion cross entropy
-
-
+	
+    edge_pred_model = Model([node_input, edges_value_input, edges_adj_input, edges_adj_input2], [pair_tower2,nt_tower])   
+    return edge_pred_model
 
 def weighted_binary_crossentropy_ntRegularized(y_true, y_pred) :
     y_true = K.clip(y_true, K.epsilon(), 1-K.epsilon())

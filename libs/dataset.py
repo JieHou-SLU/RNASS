@@ -1,10 +1,21 @@
+from spektral.data.loaders import BatchLoader
+from spektral.data import Dataset, Graph
 import numpy as np
+import scipy.sparse as sp
+import glob
+import sys
+import re
 
+from tensorflow.keras.utils import *
+import tensorflow as tf
+from tensorflow.keras import backend as K
+from libs.utils import *
 
 class gcn_data_wrapper(Dataset):
-    def __init__(self, name, dataset, expected_n_channels, **kwargs):
+    def __init__(self, name, dataset, expected_n_channels, edge_type, **kwargs):
         self.name = name.lower()
         self.expected_n_channels = expected_n_channels
+        self.edge_type = edge_type
         
         # sort table by length
         #self.dataset = dataset.sort_values(["Length"], ascending=True).reset_index(drop=True)
@@ -19,7 +30,7 @@ class gcn_data_wrapper(Dataset):
             
             batch_data = self.dataset.iloc[index: (index + 1)] # select rows of dataframe
 
-            X, EE_val, EE_adj, Y, nt_Y = get_input_output_rna_augment_bin_ntApairRegularized_gcn(batch_data, self.expected_n_channels)
+            X, EE_val, EE_adj, Y, nt_Y = get_input_output_rna_augment_bin_ntApairRegularized_gcn(batch_data, self.expected_n_channels, edge_type= self.edge_type)
 
             # single sample
             x = X[0].astype(np.float32)
@@ -34,9 +45,10 @@ class gcn_data_wrapper(Dataset):
 
 
 class RnaGenerator_gcn_sp(Sequence):
-    def __init__(self, dataset, batch_size, expected_n_channels, transforms=None):
+    def __init__(self, dataset, batch_size, expected_n_channels, edge_type, transforms=None):
         self.batch_size = batch_size
         self.expected_n_channels = expected_n_channels
+        self.edge_type = edge_type
         self.transforms = transforms
         
         # sort table by length
@@ -52,12 +64,12 @@ class RnaGenerator_gcn_sp(Sequence):
     def __getitem__(self, index):
         batch_data = self.dataset.iloc[index * self.batch_size: (index + 1) * self.batch_size] # select rows of dataframe
 
-        dataset = gcn_data_wrapper(name = 'tmp', dataset = batch_data, expected_n_channels = expected_n_channels, transforms=self.transforms)
+        dataset = gcn_data_wrapper(name = 'tmp', dataset = batch_data, expected_n_channels = self.expected_n_channels, edge_type = self.edge_type, transforms=self.transforms)
 
         return dataset
 
 
-def get_feature_and_y_ntApairRegularized_gcn(batch_data, i, fea_type = 0):
+def get_feature_and_y_ntApairRegularized_gcn(batch_data, i, expected_n_channels, include_pseudoknots=True, edge_type = 'LinearPartition'):
         sequence = batch_data['Sequence'][i]
     
         if include_pseudoknots:
@@ -114,64 +126,64 @@ def get_feature_and_y_ntApairRegularized_gcn(batch_data, i, fea_type = 0):
         nt_contact = nt_contact.astype(np.uint8)
 
 
-		node_feature = encode_feature
+        node_feature = encode_feature
 
-		if edge_type == 'LinearPartition':
-			ss_energy = linearProb
-		else: 
-			ss_energy = MXfold_pairs
-		if ss_energy == '':
-			ss_energy = linearProb 
-		if ss_energy[0] == ',':
-			ss_energy = ss_energy[1:]
-		if ss_energy[0] == ';':
-			ss_energy = ss_energy[1:]
+        if edge_type == 'LinearPartition':
+            ss_energy = linearProb
+        else: 
+            ss_energy = MXfold_pairs
+        if ss_energy == '':
+            ss_energy = linearProb 
+        if ss_energy[0] == ',':
+            ss_energy = ss_energy[1:]
+        if ss_energy[0] == ';':
+            ss_energy = ss_energy[1:]
 
-		lines = ss_energy.split(',')
-		
-		nt_pair_prob = np.zeros((seqLen, seqLen))
-		
-		for line in lines:
-			s = line.strip().replace(' ','') # 1-22-0.5
-			# Use regex to correctly match all numbers, including scientific notation
-			# The pattern matches numbers possibly followed by scientific notation
-			arr = re.findall(r'\d+\.?\d*(?:e-?\d+)?', s)
-			if not line.startswith('#') and len(arr)>=2:
-				print(arr)
-				nt_index = int(arr[0])
-				pair_index = int(arr[1])
-				if len(arr)>2:
-					pair_prob = float(arr[2]) # ss prob
-				else:
-					pair_prob = 1 # ss pairs
-				nt_pair_prob[nt_index-1,pair_index-1] = pair_prob
-				nt_pair_prob[pair_index-1,nt_index-1] = pair_prob
+        lines = ss_energy.split(',')
+        
+        nt_pair_prob = np.zeros((seqLen, seqLen))
+        
+        for line in lines:
+            s = line.strip().replace(' ','') # 1-22-0.5
+            # Use regex to correctly match all numbers, including scientific notation
+            # The pattern matches numbers possibly followed by scientific notation
+            arr = re.findall(r'\d+\.?\d*(?:e-?\d+)?', s)
+            if not line.startswith('#') and len(arr)>=2:
+                #print(arr)
+                nt_index = int(arr[0])
+                pair_index = int(arr[1])
+                if len(arr)>2:
+                    pair_prob = float(arr[2]) # ss prob
+                else:
+                    pair_prob = 1 # ss pairs
+                nt_pair_prob[nt_index-1,pair_index-1] = pair_prob
+                nt_pair_prob[pair_index-1,nt_index-1] = pair_prob
 
-		
-		edge_feature = np.copy(nt_pair_prob)
-		edge_feature[edge_feature>0.5]=1
-		
-		### add physicochemical_property_indices (L,L,22)
-		physicochemical = np.zeros((seqLen, seqLen, 22))
-		for i in range(0,seqLen):
-			for j in range(0,seqLen):
-				nt_pair = sequence[i]+sequence[j]
-				if nt_pair in physicochemical_property_indices:
-					physicochemical[i, j] = physicochemical_property_indices[nt_pair] 
-				else:
-					physicochemical[i, j] = 0
-					#raise Exception(nt_pair,' is not found in physicochemical_property_indices')
+        
+        edge_feature = np.copy(nt_pair_prob)
+        edge_feature[edge_feature>0.5]=1
+        
+        ### add physicochemical_property_indices (L,L,22)
+        physicochemical = np.zeros((seqLen, seqLen, 22))
+        for i in range(0,seqLen):
+            for j in range(0,seqLen):
+                nt_pair = sequence[i]+sequence[j]
+                if nt_pair in physicochemical_property_indices:
+                    physicochemical[i, j] = physicochemical_property_indices[nt_pair] 
+                else:
+                    physicochemical[i, j] = 0
+                    #raise Exception(nt_pair,' is not found in physicochemical_property_indices')
 
-		edge_val_feature = physicochemical
-		
-		# should we set diagnal to 1?
-		np.fill_diagonal(edge_feature, 1)        
+        edge_val_feature = physicochemical
+        
+        # should we set diagnal to 1?
+        np.fill_diagonal(edge_feature, 1)        
    
-		# should we set offset diagnal to 1?
-		rng = np.arange(len(edge_feature)-1)
-		edge_feature[rng, rng+1] = 1
-		edge_feature[rng+1, rng] = 1
-		
+        # should we set offset diagnal to 1?
+        rng = np.arange(len(edge_feature)-1)
+        edge_feature[rng, rng+1] = 1
+        edge_feature[rng+1, rng] = 1
+        
 
         ###########################################   Extract pairs    
 
@@ -180,12 +192,9 @@ def get_feature_and_y_ntApairRegularized_gcn(batch_data, i, fea_type = 0):
         X = np.full((seqLen, expected_n_channels), 0)
         X[:, 0:expected_n_channels] = node_feature
 
-        if fea_type == 0 or fea_type == 1 or fea_type == -1:
-            E_val = np.full((seqLen, seqLen, 1), 0)
-            E_val[:, :, 0] = edge_val_feature
-        elif fea_type == 2 or fea_type == 3:
-            E_val = np.full((seqLen, seqLen, 22), 0)
-            E_val[:, :, 0:22] = edge_val_feature
+
+        E_val = np.full((seqLen, seqLen, 22), 0)
+        E_val[:, :, 0:22] = edge_val_feature
         
         E_adj = np.full((seqLen, seqLen), 0)
         E_adj[:, :] = edge_feature
@@ -202,7 +211,7 @@ def get_feature_and_y_ntApairRegularized_gcn(batch_data, i, fea_type = 0):
         return X, E_val, E_adj, Y0, nt_Y0
 
 
-def get_input_output_rna_augment_bin_ntApairRegularized_gcn(batch_data, expected_n_channels):
+def get_input_output_rna_augment_bin_ntApairRegularized_gcn(batch_data, expected_n_channels, edge_type = 'LinearPartition'):
     # get maximum length
     OUTL = batch_data["Length"].max()
 
@@ -231,7 +240,7 @@ def get_input_output_rna_augment_bin_ntApairRegularized_gcn(batch_data, expected
     for i in batch_data.index:
         rna = batch_data['RNA_ID'][i]
         
-        X, E_val, E_adj,Y0,nt_Y0 = get_feature_and_y_ntApairRegularized_gcn(batch_data, i, fea_type = feature_type)
+        X, E_val, E_adj,Y0,nt_Y0 = get_feature_and_y_ntApairRegularized_gcn(batch_data, i, expected_n_channels, edge_type == edge_type)
 
         assert len(X[0, :]) == expected_n_channels
         assert len(X[:, 0]) >= len(Y0[:, 0])

@@ -1,4 +1,5 @@
 import sys
+import numpy as np
 from tensorflow.keras.utils import *
 import tensorflow as tf
 from tensorflow.keras import backend as K
@@ -22,16 +23,6 @@ physicochemical_property_indices = {'AA':[2,0,-6.6,-6.82,-18.4,-19,-0.9,-0.93,0,
 'UC':[0,1,-10.2,-12.44,-26.2,-32.5,-2.1,-2.35,1,0,0.359,0.48,1,0,3.38,9.4,0.07,-1.7,-14.2,1,1.3,32],
 'UG':[0,0,-7.6,-10.44,-19.2,-26.9,-1.7,-2.11,1,1,0.224,0.34,1,1,3.09,9.9,0.11,-1.46,-14.4,1,1,31],
 'UU':[0,0,-6.6,-6.82,-18.4,-19,-0.9,-0.93,0,0,0.389,0.44,2,0,3.18,7,-0.08,-1.27,-13.7,2,-0.8,31]}
-
-
-
-def ReshapeConv_to_LSTM(x):
-    reshape=K.expand_dims(x,0)
-    return reshape
-
-def ReshapeLSTM_to_Conv(x):
-    reshape=K.squeeze(x,0)
-    return reshape
 
 
 
@@ -73,7 +64,7 @@ def output_mask(seq, NC=True):
                 mask[i, j] = 1
     return mask
 
-def get_ss_pairs_from_matrix(pair_matrix,sequence,label_mask,Threshold):
+def get_ss_pairs_from_matrix(pair_matrix,sequence,label_mask,Threshold, flag_noncanonical = 0):
     ones = np.ones((len(pair_matrix), len(pair_matrix)))
     #test_output= pair_matrix[np.triu(ones, 2) == 1][..., np.newaxis]
     test_output= np.triu(pair_matrix, 2)
