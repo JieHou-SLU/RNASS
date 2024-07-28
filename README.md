@@ -2,7 +2,7 @@
 
 
 
-## Create Environment with Conda <a name="Setup_Environment"></a>
+### Create Environment with Conda <a name="Setup_Environment"></a>
 First, download the repository and create the environment.
 ```
 git clone https://github.com/JieHou-SLU/RNASS.git
@@ -50,11 +50,29 @@ Then, activate the "RNASS" environment
 conda activate RNASS
 ```
 
+
+### Download dataset for training and evaluation <a name="Data_access"></a>
+Download the 'Refined_dataset.h5' from https://www.dropbox.com/scl/fi/n5v45jfgqjrj94mmk4zfs/Refined_dataset.h5?rlkey=3tp11ltm3yk3bysen5w8tzheq 
+And save the file to folder 'data/'
+
 ###  Inference and evaluate GNN methods for RNA secondary structure prediction on bpRNA and PDB datasets 
+
+The following examples support evaluation for GNN types: ['EdgeConv, APPNPConv, DefaultGatedGCN, ARMAConv, GATConv4,  GCNConv']
+
+**1. ARMAConv (Use LinearPartition as edge adjacency input)**
 ```
 python3 inference.py -m models/LinearPartition_use/ARMAConv/rna_best_val.hdf5 -p data/Refined_dataset.h5 -o results/test_ARMA -w ARMAConv -a LinearPartition
 ```
 
+**2. EdgeConv (Use LinearPartition as edge adjacency input)**
+```
+python3 inference.py -m models/LinearPartition_use/EdgeConv/rna_best_val.hdf5 -p data/Refined_dataset.h5 -o results/test_EdgeConv -w EdgeConv -a LinearPartition
+```
+
+**3. APPNPConv (Use LinearPartition as edge adjacency input)**
+```
+python3 inference.py -m models/LinearPartition_use/APPNPConv/rna_best_val.hdf5 -p data/Refined_dataset.h5 -o results/test_APPNPConv -w APPNPConv -a LinearPartition
+```
 
 ### Run training using GNN methods
 The full training code will be made available following the peer review and acceptance of our paper to ensure quality. Currently, the released code includes model definitions and evaluations. Please do not hesitate to contact us if you would like to request the complete training code.
