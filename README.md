@@ -56,6 +56,5 @@ python3 inference.py -m models/LinearPartition_use/ARMAConv/rna_best_val.hdf5 -p
 ```
 
 
-## Run training using GNN methods 
-The codes will be released once the paper is reviewed and accepted to guarantee the quality.
- 
+### Run training using GNN methods
+The full training code will be made available following the peer review and acceptance of our paper to ensure quality. Currently, the released code includes model definitions and evaluations. Please do not hesitate to contact us if you would like to request the complete training code.
