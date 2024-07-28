@@ -50,12 +50,12 @@ Then, activate the "RNASS" environment
 conda activate RNASS
 ```
 
-## Make prediction using GNN methods for RNA secondary structure prediction 
-
-
-## Evaluate methods on bpRNA and PDB datasets
+###  Inference and evaluate GNN methods for RNA secondary structure prediction on bpRNA and PDB datasets 
+```
+python3 inference.py -m models/LinearPartition_use/ARMAConv/rna_best_val.hdf5 -p data/Refined_dataset.h5 -o results/test_ARMA -w ARMAConv -a LinearPartition
+```
 
 
 ## Run training using GNN methods 
-
+The codes will be released once the paper is reviewed and accepted to guarantee the quality.
  
