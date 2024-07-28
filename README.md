@@ -43,6 +43,19 @@ pip install tables==3.7.0
 pip install scipy==1.8.0
 pip install tqdm
 pip install spektral
-
-
 ```
+
+Then, activate the "RNASS" environment 
+```
+conda activate RNASS
+```
+
+## Make prediction using GNN methods for RNA secondary structure prediction 
+
+
+## Evaluate methods on bpRNA and PDB datasets
+
+
+## Run training using GNN methods 
+
+ 
