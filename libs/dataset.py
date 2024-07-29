@@ -8,6 +8,7 @@ import re
 
 from tensorflow.keras.utils import *
 import tensorflow as tf
+epsilon = tf.keras.backend.epsilon()
 from tensorflow.keras import backend as K
 from libs.utils import *
 

@@ -1,8 +1,5 @@
 import sys
 import numpy as np
-from tensorflow.keras.utils import *
-import tensorflow as tf
-from tensorflow.keras import backend as K
 
 #http://bioinformatics.hitsz.edu.cn/repRNA/static/download/physicochemical_property_indices.pdf
 #	Adenine_content	 Cytosine content (3) 	Enthalpy (4) 	Enthalpy2 (4) 	Entropy (5) 	Entropy2 (5)	Free energy(5)	 Free energy2(5) 	GCcontent(3)	 Guaninecontent(3) Hy	drophilicity(2)	Hydrophilicity2	Keto (GT)content	Purine (AG)content	Rise (1)	Roll (1)	Shift (1)	Slide (1)	Stacking energy (1)	Thymine content (3)	Tilt (1)	Twist (1)

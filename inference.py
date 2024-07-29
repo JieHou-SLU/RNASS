@@ -228,26 +228,7 @@ pdb_test3_data = dataset[((dataset['DataSource'] == 'PDB') & (dataset['DataType'
 
 
 data_transform = None
-if gcn_type == 'GraphSage':    
-    data_transform = [LayerPreprocess(GraphSageConv), AdjToSpTensor()]
-elif gcn_type == 'AGNNConv':
-    data_transform = [LayerPreprocess(AGNNConv), AdjToSpTensor()]
-elif gcn_type == 'APPNPConv':
-    data_transform = [LayerPreprocess(APPNPConv), AdjToSpTensor()]
-elif gcn_type == 'ARMAConv':
-    data_transform = [LayerPreprocess(ARMAConv), AdjToSpTensor()]
-elif gcn_type == 'EdgeConv':
-    data_transform = [LayerPreprocess(EdgeConv), AdjToSpTensor()]
-elif gcn_type == 'GATConv':
-    data_transform = [LayerPreprocess(GATConv), AdjToSpTensor()]
-elif gcn_type == 'GATConv4':
-    data_transform = [LayerPreprocess(GATConv), AdjToSpTensor()]
-elif gcn_type == 'GatedGraphConv':
-    data_transform = [LayerPreprocess(GatedGraphConv), AdjToSpTensor()]
-elif gcn_type == 'GCNConv':
-    data_transform = [LayerPreprocess(GCNConv), AdjToSpTensor()]
-else:
-    data_transform = [LayerPreprocess(GraphSageConv), AdjToSpTensor()]
+data_transform = [LayerPreprocess(GraphSageConv), AdjToSpTensor()]
 
 bpRNA_train_generator = RnaGenerator_gcn_sp(bpRNA_train_data, batch_size, expected_n_channels, edge_type = edge_type, transforms=data_transform)
 bpRNA_valid_generator = RnaGenerator_gcn_sp(bpRNA_valid_data, batch_size, expected_n_channels, edge_type = edge_type, transforms=data_transform)

@@ -1,7 +1,13 @@
+
+import logging, os 
+logging.disable(logging.WARNING) 
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+
+# use cpu only
+#os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+
 from tensorflow.keras.utils import *
 import tensorflow as tf
-
-from tensorflow.keras import backend as K
 epsilon = tf.keras.backend.epsilon()
 import matplotlib
 import matplotlib.pyplot as plt
@@ -10,14 +16,35 @@ from tensorflow.python.keras import layers, optimizers
 
 from tensorflow_addons.layers import InstanceNormalization
 from tensorflow.keras.layers import Input, Conv1D, Convolution2D, Activation, add, Dropout, BatchNormalization, Reshape, Lambda,Bidirectional
-from tensorflow.keras.layers import Flatten, Dense, Embedding, concatenate, Add, Multiply, Concatenate, ConvLSTM2D
-
-from spektral.transforms import AdjToSpTensor, LayerPreprocess
-# Create the model using a Spektral layer
-from spektral.layers import GraphSageConv, AGNNConv, APPNPConv, ARMAConv,EdgeConv,GATConv,GatedGraphConv, GCNConv
+from tensorflow.keras.layers import Input, Dense, Embedding, concatenate, Add, Activation, Multiply, Lambda, BatchNormalization
 
 from tensorflow.keras.models import Model
+from tensorflow.keras import backend as K
 from tensorflow.keras.regularizers import l2
+from tensorflow.keras.layers import ConvLSTM2D
+
+from tqdm import tqdm
+from spektral.data.loaders import BatchLoader
+from tensorflow.keras.layers import Input, Dense, Embedding, concatenate, Add, Activation, Multiply, Lambda, BatchNormalization
+
+# Create the model using a Spektral layer
+from spektral.layers import GCNConv
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Input, Dense, Flatten, Concatenate
+
+from tensorflow.keras.layers import Input, Dense, Embedding, concatenate, Add, Activation, Multiply, Lambda, BatchNormalization
+from spektral.layers import GraphSageConv
+
+from spektral.data import Dataset, Graph
+import numpy as np
+import scipy.sparse as sp
+import tensorflow as tf
+import networkx as nx
+from spektral.transforms import AdjToSpTensor, LayerPreprocess
+from spektral.layers import GraphSageConv, AGNNConv, APPNPConv, ARMAConv,EdgeConv,GATConv,GatedGraphConv, GCNConv, GCSConv, GINConv, GTVConv,TAGConv
+
+
+import glob
 
 
 
@@ -32,7 +59,7 @@ def ReshapeLSTM_to_Conv(x):
 
 
 def rna_pair_prediction_bin_spektral(gcn_type = 'ARMAConv', node_num = None, node_dim=4, hidden_dim=100, voc_edges_in = 2, voc_edges_out = 1, voc_nodes_out = 2, num_gcn_layers = 10, num_lstm_layers = 2, lstm_filter = 8, aggregation = "mean", regularize=False, dropout_rate = 0.25, dilation_size = 1, filter_size=3):
-    if  gcn_type not in ['DefaultGatedGCN', 'APPNPConv', 'ARMAConv',  'EdgeConv', 'GATConv', 'GatedGraphConv', 'GCNConv']:
+    if  gcn_type not in ['GatedGCNConv', 'APPNPConv', 'ARMAConv',  'EdgeConv', 'GATConv', 'GCNConv']:
         print("Wrong gcn_type")
         raise
 
@@ -109,49 +136,46 @@ def rna_pair_prediction_bin_spektral(gcn_type = 'ARMAConv', node_num = None, nod
         node_combine = []
         #for gcn_type in ['GraphSage','APPNPConv', 'ARMAConv', 'EdgeConv',  'GATConv4',  'GatedGraphConv', 'GCNConv']:
         #for gcn_type in ['APPNPConv', 'ARMAConv', 'GCNConv', 'EdgeConv', 'GATConv4']:
-        for gcn_type in [gcn_type]:
-            if gcn_type == 'APPNPConv':
+        for layer_type in [gcn_type]:
+            if layer_type == 'APPNPConv':
                 node_in = tf.squeeze(x_in, axis=0) 
                 #adj_in = tf.squeeze(a_in, axis=0) 
                 node_convnet = APPNPConv(channels = hidden_dim, activation='relu')([node_in, a_in])
                 
                 node_convnet2 = K.expand_dims(node_convnet, 0)
+                node_combine.append(node_convnet2)
     
-            elif gcn_type == 'ARMAConv':
+            elif layer_type == 'ARMAConv':
                 node_in = tf.squeeze(x_in, axis=0) 
                 #adj_in = tf.squeeze(a_in, axis=0) 
                 node_convnet = ARMAConv(channels = hidden_dim, order=2, iterations=5, activation='relu')([node_in, a_in])
                 node_convnet2 = K.expand_dims(node_convnet, 0)
+                node_combine.append(node_convnet2)
     
-            elif gcn_type == 'EdgeConv':
+            elif layer_type == 'EdgeConv':
                 node_in = tf.squeeze(x_in, axis=0) 
                 #adj_in = tf.squeeze(a_in, axis=0) 
                 #edge_in = tf.squeeze(edge_convnet, axis=0) 
                 node_convnet = EdgeConv(channels = hidden_dim, aggregate='sum', activation='relu')([node_in, a_in])
                 node_convnet2 = K.expand_dims(node_convnet, 0)
-    
-            elif gcn_type == 'GATConv':
-                node_in = tf.squeeze(x_in, axis=0) 
-                #adj_in = tf.squeeze(a_in, axis=0) 
-                #edge_in = tf.squeeze(edge_convnet, axis=0) 
-                node_convnet = GATConv(channels = hidden_dim, attn_heads=1, activation='relu')([node_in, a_in])
-                node_convnet2 = K.expand_dims(node_convnet, 0)
+                node_combine.append(node_convnet2)
             
-            elif gcn_type == 'GATConv4':
+            elif layer_type == 'GATConv':
                 node_in = tf.squeeze(x_in, axis=0) 
                 #adj_in = tf.squeeze(a_in, axis=0) 
                 #edge_in = tf.squeeze(edge_convnet, axis=0) 
                 node_convnet = GATConv(channels = hidden_dim, attn_heads=4, concat_heads=False, activation='relu')([node_in, a_in])
                 node_convnet2 = K.expand_dims(node_convnet, 0)
+                node_combine.append(node_convnet2)
     
-            elif gcn_type == 'GCNConv':
+            elif layer_type == 'GCNConv':
                 node_in = tf.squeeze(x_in, axis=0) 
                 #adj_in = tf.squeeze(a_in, axis=0) 
                 #edge_in = tf.squeeze(edge_convnet, axis=0) 
                 node_convnet = GCNConv(channels = hidden_dim, activation='relu')([node_in, a_in])
                 node_convnet2 = K.expand_dims(node_convnet, 0)
 
-            node_combine.append(node_convnet2)
+                node_combine.append(node_convnet2)
         #elif gcn_type == 'DefaultGatedGCN':
 
         ################# (1.2) Compute edge gates ######################### 
