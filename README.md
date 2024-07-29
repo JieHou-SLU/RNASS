@@ -57,7 +57,7 @@ And save the file to folder 'data/'
 
 ###  Inference and evaluate GNN methods for RNA secondary structure prediction on bpRNA and PDB datasets 
 
-The following examples support evaluation for GNN types: ['EdgeConv, APPNPConv, DefaultGatedGCN, ARMAConv, GATConv4,  GCNConv']
+The following examples support evaluation for GNN types: ['EdgeConv, APPNPConv, GatedGCN, ARMAConv, GATConv4,  GCNConv']
 
 **1. ARMAConv (Use LinearPartition as edge adjacency input)**
 ```
@@ -66,12 +66,27 @@ python3 inference.py -m models/LinearPartition_use/ARMAConv/rna_best_val.hdf5 -p
 
 **2. EdgeConv (Use LinearPartition as edge adjacency input)**
 ```
-python3 inference.py -m models/LinearPartition_use/EdgeConv/rna_best_val.hdf5 -p data/Refined_dataset.h5 -o results/test_EdgeConv -w EdgeConv -a LinearPartition
+python3 inference.py -m models/LinearPartition_use/EdgeConv/rna_best_val -p data/Refined_dataset.h5 -o results/test_EdgeConv -w EdgeConv -a LinearPartition
 ```
 
 **3. APPNPConv (Use LinearPartition as edge adjacency input)**
 ```
-python3 inference.py -m models/LinearPartition_use/APPNPConv/rna_best_val.hdf5 -p data/Refined_dataset.h5 -o results/test_APPNPConv -w APPNPConv -a LinearPartition
+python3 inference.py -m models/LinearPartition_use/APPNPConv/rna_best_val -p data/Refined_dataset.h5 -o results/test_APPNPConv -w APPNPConv -a LinearPartition
+```
+
+**4. GatedGCN (Use LinearPartition as edge adjacency input)**
+```
+python3 inference.py -m models/LinearPartition_use/GatedGCN/rna_best_val.hdf5 -p data/Refined_dataset.h5 -o results/test_GatedGCNConv -w GatedGCNConv -a LinearPartition
+```
+
+**5. GCNConv (Use LinearPartition as edge adjacency input)**
+```
+python3 inference.py -m models/LinearPartition_use/GCNConv/rna_best_val.hdf5 -p data/Refined_dataset.h5 -o results/test_GCNConv -w GCNConv -a LinearPartition
+```
+
+**6. GATConv4 (Use LinearPartition as edge adjacency input)**
+```
+python3 inference.py -m models/LinearPartition_use/GATConv/rna_best_val.hdf5 -p data/Refined_dataset.h5 -o results/test_GATConv -w GATConv -a LinearPartition
 ```
 
 ### Run training using GNN methods
