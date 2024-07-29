@@ -63,6 +63,31 @@ The following examples support evaluation for GNN types: ['EdgeConv, APPNPConv, 
 ```
 python3 inference.py -m models/LinearPartition_use/ARMAConv/rna_best_val.hdf5 -p data/Refined_dataset.h5 -o results/test_ARMA -w ARMAConv -a LinearPartition
 ```
+```
+########################### bpRNA validation evaluation (total  846  rnas): ###################################
+Method    ppv         sensitivity          npv        specificity        f1_score        mcc        accuracy
+Acc:     75.855        66.394        99.863      99.918      69.685      70.284      99.782
+########################### bpRNA test evaluation (total  871  rnas): ###################################
+Method    ppv         sensitivity          npv        specificity        f1_score        mcc        accuracy
+Acc:     76.473        67.014        99.866      99.922      70.295      70.898      99.789
+########################### PDB train evaluation (total  120  rnas): ###################################
+Method    ppv         sensitivity          npv        specificity        f1_score        mcc        accuracy
+Acc:     91.755        92.483        99.945      99.937      91.726      91.864      99.883
+########################### PDB validation evaluation (total  30  rnas): ###################################
+Method    ppv         sensitivity          npv        specificity        f1_score        mcc        accuracy
+Acc:     73.249        85.372        99.929      99.801      77.871      78.428      99.733
+########################### PDB test evaluation (total  66  rnas): ###################################
+Method    ppv         sensitivity          npv        specificity        f1_score        mcc        accuracy
+Acc:     75.622        86.524        99.880      99.771      79.517      80.118      99.655
+########################### PDB test2 evaluation (total  36  rnas): ###################################
+Method    ppv         sensitivity          npv        specificity        f1_score        mcc        accuracy
+Acc:     86.792        94.837        99.935      99.819      90.131      90.355      99.756
+########################### PDB test_hard evaluation (total  23  rnas): ###################################
+Method    ppv         sensitivity          npv        specificity        f1_score        mcc        accuracy
+Acc:     71.666        81.886        99.805      99.707      75.110      75.689      99.516
+#######################################################################
+
+```
 
 **2. EdgeConv (Use LinearPartition as edge adjacency input)**
 ```
