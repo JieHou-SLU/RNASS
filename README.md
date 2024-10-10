@@ -1,6 +1,6 @@
 # RNASS
 
-Note: This work has been accepted as a regular paper for oral presentation at the International Conference on Intelligent Biology and Medicine (ICIBM 2024). We are revising the paper based on reviewers' comments for journal submission.
+Note: This work has been accepted as a regular paper for oral presentation at the International Conference on Intelligent Biology and Medicine (ICIBM 2024). We are revising the paper and codes based on reviewers' comments for journal submission.
 
 ### Create Environment with Conda <a name="Setup_Environment"></a>
 First, download the repository and create the environment.
