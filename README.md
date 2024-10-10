@@ -1,5 +1,7 @@
 # RNASS
 
+Paper: Exploring the Efficiency of Deep Graph Neural Networks for RNA Secondary Structure Prediction
+
 Note: This work has been accepted as a regular paper for oral presentation at the International Conference on Intelligent Biology and Medicine (ICIBM 2024). We are revising the paper and codes based on reviewers' comments for journal submission.
 
 ### Create Environment with Conda <a name="Setup_Environment"></a>
